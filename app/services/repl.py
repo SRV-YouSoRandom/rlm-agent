@@ -35,7 +35,7 @@ class REPLEnvironment:
         self._globals: dict[str, Any] = {
             "__builtins__": SAFE_BUILTINS,
             "context": document_text,
-            "results": [],          # LLM can accumulate findings here
+            "results": [],
         }
         self.execution_history: list[dict] = []
 
@@ -95,18 +95,38 @@ class REPLEnvironment:
     def _exec_restricted(self, code: str):
         """Execute with RestrictedPython if available, else plain exec."""
         try:
-            from RestrictedPython import compile_restricted, safe_globals
-            from RestrictedPython.Guards import safe_builtins
+            from RestrictedPython import compile_restricted
+            from RestrictedPython.Guards import safe_builtins, guarded_getiter, guarded_getattr
+            from RestrictedPython.PrintCollector import PrintCollector
+
             byte_code = compile_restricted(code, "<string>", "exec")
+
+            # PrintCollector handles print() in RestrictedPython
+            _print_ = PrintCollector
+            _getiter_ = guarded_getiter
+            _getattr_ = guarded_getattr
+
             restricted_globals = {
                 "__builtins__": safe_builtins,
+                "_print_": PrintCollector,
+                "_getiter_": guarded_getiter,
+                "_getattr_": guarded_getattr,
                 **{k: v for k, v in self._globals.items() if k != "__builtins__"},
             }
+
             exec(byte_code, restricted_globals)  # noqa: S102
-            # Sync back any new variables
+
+            # Capture printed output via PrintCollector
+            if "_print" in restricted_globals:
+                printed = str(restricted_globals["_print"])
+                if printed:
+                    sys.stdout.write(printed)
+
+            # Sync back any new variables set by the code
             for k, v in restricted_globals.items():
                 if not k.startswith("_"):
                     self._globals[k] = v
+
         except ImportError:
             logger.warning("RestrictedPython not installed, falling back to plain exec")
             exec(code, self._globals)  # noqa: S102

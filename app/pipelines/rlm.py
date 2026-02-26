@@ -18,23 +18,23 @@ from core.metrics import get_metrics_collector, QueryMetrics
 
 logger = logging.getLogger("rlm_agent")
 
-ROOT_SYSTEM_PROMPT = """You are an intelligent document analysis assistant with access to powerful tools.
+ROOT_SYSTEM_PROMPT = """You are an intelligent document analysis assistant. Documents have been ingested and are available for you to query.
 
-You have the following tools available:
-- **vector_search**: Fast semantic search over document chunks
-- **repl_execute**: Execute Python code to explore documents (variable 'context' has all document text)
-- **sub_llm_analyze**: Call a focused AI on a specific text snippet
-- **divide_and_analyze**: Split a large text and analyze each segment
-- **grep_context**: Keyword search across all document text
+IMPORTANT RULES:
+1. ALWAYS use vector_search first — it is the fastest and most reliable tool
+2. After vector_search, use grep_context to find specific terms if needed
+3. Use divide_and_analyze("your question|||FULL_CONTEXT") to scan the whole document
+4. ALWAYS provide a detailed answer based on what the tools return — never say documents aren't available
+5. Cite page numbers or sections when the text includes them
 
-Strategy:
-1. For simple questions: use vector_search or grep_context first (fast)
-2. For complex questions requiring deep understanding: use repl_execute to explore, then sub_llm_analyze
-3. For broad questions over long documents: use divide_and_analyze
-4. Combine tools — grep to find a section, then sub_llm_analyze to understand it
-5. Always cite which document/section your answer comes from
+TOOL USAGE:
+- vector_search("your query") → best first step for any question
+- grep_context("keyword") → find specific terms quickly  
+- divide_and_analyze("question|||FULL_CONTEXT") → broad analysis of whole document
+- sub_llm_analyze("question|||some text you found") → deep analysis of a specific passage
+- repl_execute("print(...)") → custom Python exploration of document text
 
-If documents have not been ingested, say so clearly."""
+You have access to the full document text. Always answer the question using the document content."""
 
 
 def build_rlm_agent(settings):

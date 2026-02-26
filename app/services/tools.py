@@ -34,8 +34,9 @@ def get_repl() -> REPLEnvironment:
 def vector_search(query: str) -> str:
     """
     Search the vector database for semantically similar document chunks.
-    Use this for quick targeted retrieval when you know what you're looking for.
-    Input: a search query string.
+    ALWAYS try this tool first for any question — it is fast and reliable.
+    Input: a search query string describing what you want to find.
+    Example: vector_search("unreliable networks distributed systems")
     """
     try:
         settings = get_settings()
@@ -53,33 +54,49 @@ def vector_search(query: str) -> str:
 @tool
 def repl_execute(code: str) -> str:
     """
-    Execute Python code in the sandboxed REPL environment.
-    The variable 'context' contains all ingested document text.
-    Use Python string operations (split, find, regex) to explore it.
-    Print results — they will be captured and returned.
-    Example: print(context[:500])
-    Example: print([line for line in context.split('\\n') if 'revenue' in line.lower()])
+    Execute Python code in the REPL environment.
+    The variable 'context' contains ALL ingested document text as a string.
+    Always print your results — output is captured and returned.
+    
+    Good examples:
+      print(context[:2000])
+      lines = [l for l in context.split('\\n') if 'replication' in l.lower()]
+      print('\\n'.join(lines[:20]))
+    
+    DO NOT just print(len(context)) — always extract and print actual content.
     """
     repl = get_repl()
     result = repl.execute(code)
     if result["success"]:
-        return result["output"] or "[Code executed, no output printed]"
+        output = result["output"]
+        if not output or not output.strip():
+            return "[Code executed but no output was printed. Make sure to use print() to show results.]"
+        return output
     return f"[REPL ERROR]: {result['error']}"
 
 
 @tool
 def sub_llm_analyze(instruction_and_snippet: str) -> str:
     """
-    Call a focused sub-LLM on a specific text snippet.
-    Input format: 'INSTRUCTION|||SNIPPET'
-    Use '|||' as the separator between the instruction and the text snippet.
-    Example: 'What is the total revenue?|||Q3 revenue was $4.2M, Q4 was $5.1M...'
+    Call a focused sub-LLM to analyze a specific piece of text.
+    Input format: 'YOUR QUESTION|||THE TEXT TO ANALYZE'
+    Use '|||' as the separator. Provide real text after |||, not a variable name.
+    
+    Example:
+      sub_llm_analyze("What strategies are mentioned for handling network failures?|||[paste actual text here]")
     """
     try:
         if "|||" not in instruction_and_snippet:
-            return "[ERROR]: Input must be formatted as 'INSTRUCTION|||SNIPPET'"
+            return "[ERROR]: Input must be formatted as 'INSTRUCTION|||TEXT'. Make sure to include actual text after |||, not a variable name."
         instruction, snippet = instruction_and_snippet.split("|||", 1)
-        return call_sub_llm(instruction.strip(), snippet.strip(), current_depth=1)
+        snippet = snippet.strip()
+        if not snippet or snippet == "context":
+            # If agent passed the word "context" instead of actual text, get it from REPL
+            repl = get_repl()
+            snippet = repl.get_variable("context") or ""
+            if not snippet:
+                return "[ERROR]: No document text available. Please ingest documents first."
+        return call_sub_llm(instruction.strip(), snippet, current_depth=1)
     except Exception as e:
         return f"[Sub-LLM error]: {e}"
 
@@ -87,17 +104,29 @@ def sub_llm_analyze(instruction_and_snippet: str) -> str:
 @tool
 def divide_and_analyze(instruction_and_text: str) -> str:
     """
-    Divide a large text into segments and run a sub-LLM on each segment in parallel.
-    Use this for broad questions over large documents where you don't know where the answer is.
-    Input format: 'INSTRUCTION|||TEXT'
-    Use '|||' as the separator.
-    Returns aggregated findings from all segments.
+    Split document text into segments and analyze each one with a sub-LLM.
+    Use this for broad questions that require scanning the whole document.
+    Input format: 'YOUR QUESTION|||THE TEXT TO ANALYZE'
+    Use '|||' as the separator. Provide real text after |||, not a variable name.
+    
+    To analyze the full document, use:
+      divide_and_analyze("your question|||FULL_CONTEXT")
+    The keyword FULL_CONTEXT will be automatically replaced with the document text.
     """
     try:
         if "|||" not in instruction_and_text:
-            return "[ERROR]: Input must be formatted as 'INSTRUCTION|||TEXT'"
+            return "[ERROR]: Input must be formatted as 'INSTRUCTION|||TEXT'."
         instruction, text = instruction_and_text.split("|||", 1)
-        results = split_and_call(instruction.strip(), text.strip(), n_splits=4, current_depth=1)
+        text = text.strip()
+
+        # Handle cases where agent passes variable name or keyword instead of actual text
+        if not text or text in ("context", "FULL_CONTEXT", "full_context"):
+            repl = get_repl()
+            text = repl.get_variable("context") or ""
+            if not text:
+                return "[ERROR]: No document text available. Please ingest documents first."
+
+        results = split_and_call(instruction.strip(), text, n_splits=4, current_depth=1)
         hits = [r for r in results if "NOT FOUND IN SNIPPET" not in r]
         if not hits:
             return "No relevant information found across all segments."
@@ -109,10 +138,10 @@ def divide_and_analyze(instruction_and_text: str) -> str:
 @tool
 def grep_context(pattern: str) -> str:
     """
-    Search for lines in the document context containing a keyword or phrase.
-    Faster than sub-LLM for exact keyword lookups.
+    Search for lines in the document containing a keyword or phrase.
+    Fast exact keyword search. Use for finding specific terms or topics.
     Input: a keyword or short phrase to search for.
-    Returns matching lines with surrounding context.
+    Returns matching lines with surrounding context (up to 10 matches).
     """
     repl = get_repl()
     context = repl.get_variable("context") or ""

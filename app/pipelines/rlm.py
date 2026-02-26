@@ -4,11 +4,9 @@ Root LLM agent loop with access to REPL, sub-LLM calls, vector search, and grep 
 """
 import logging
 import time
-import uuid
 from langchain_openai import ChatOpenAI
 from langchain.agents import AgentExecutor, create_openai_tools_agent
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.messages import SystemMessage
 from services.repl import REPLEnvironment
 from services.document_store import get_all_documents_text
 from services.tools import get_all_tools, set_repl
@@ -29,7 +27,7 @@ IMPORTANT RULES:
 
 TOOL USAGE:
 - vector_search("your query") → best first step for any question
-- grep_context("keyword") → find specific terms quickly  
+- grep_context("keyword") → find specific terms quickly
 - divide_and_analyze("question|||FULL_CONTEXT") → broad analysis of whole document
 - sub_llm_analyze("question|||some text you found") → deep analysis of a specific passage
 - repl_execute("print(...)") → custom Python exploration of document text
@@ -88,7 +86,11 @@ def run_rlm(
         # Load document context into REPL
         doc_text = get_all_documents_text(collection_name)
         repl = REPLEnvironment(document_text=doc_text)
-        set_repl(repl)  # Make REPL available to tools
+
+        # Store collection_name in REPL so vector_search tool can access it
+        repl.set_variable("collection_name", collection_name or settings.qdrant_collection)
+
+        set_repl(repl)
 
         # Build and run agent
         agent_executor = build_rlm_agent(settings)
@@ -123,7 +125,7 @@ def run_rlm(
 
         return {
             "answer": answer,
-            "sources": [],  # Extracted from agent steps in production
+            "sources": [],
             "collection_name": collection_name or settings.qdrant_collection,
             "session_id": session_id,
             "agent_steps": agent_steps,
@@ -151,6 +153,10 @@ def run_rlm_streaming(
     session_id, memory = get_or_create_session(session_id)
     doc_text = get_all_documents_text(collection_name)
     repl = REPLEnvironment(document_text=doc_text)
+
+    # Store collection_name in REPL so vector_search tool can access it
+    repl.set_variable("collection_name", collection_name or settings.qdrant_collection)
+
     set_repl(repl)
 
     llm = ChatOpenAI(

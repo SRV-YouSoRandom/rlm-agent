@@ -41,7 +41,9 @@ def vector_search(query: str) -> str:
     try:
         settings = get_settings()
         query_vector = embed_query(query)
-        docs = search(query_vector, top_k=settings.top_k)
+        # Use the collection_name stored in REPL context if available
+        collection = _repl.get_variable("collection_name") if _repl else None
+        docs = search(query_vector, top_k=settings.top_k, collection_name=collection)
         if not docs:
             return "No results found in vector database."
         return "\n\n---\n\n".join(
@@ -57,12 +59,12 @@ def repl_execute(code: str) -> str:
     Execute Python code in the REPL environment.
     The variable 'context' contains ALL ingested document text as a string.
     Always print your results — output is captured and returned.
-    
+
     Good examples:
       print(context[:2000])
       lines = [l for l in context.split('\\n') if 'replication' in l.lower()]
       print('\\n'.join(lines[:20]))
-    
+
     DO NOT just print(len(context)) — always extract and print actual content.
     """
     repl = get_repl()
@@ -81,7 +83,7 @@ def sub_llm_analyze(instruction_and_snippet: str) -> str:
     Call a focused sub-LLM to analyze a specific piece of text.
     Input format: 'YOUR QUESTION|||THE TEXT TO ANALYZE'
     Use '|||' as the separator. Provide real text after |||, not a variable name.
-    
+
     Example:
       sub_llm_analyze("What strategies are mentioned for handling network failures?|||[paste actual text here]")
     """
@@ -91,7 +93,6 @@ def sub_llm_analyze(instruction_and_snippet: str) -> str:
         instruction, snippet = instruction_and_snippet.split("|||", 1)
         snippet = snippet.strip()
         if not snippet or snippet == "context":
-            # If agent passed the word "context" instead of actual text, get it from REPL
             repl = get_repl()
             snippet = repl.get_variable("context") or ""
             if not snippet:
@@ -108,7 +109,7 @@ def divide_and_analyze(instruction_and_text: str) -> str:
     Use this for broad questions that require scanning the whole document.
     Input format: 'YOUR QUESTION|||THE TEXT TO ANALYZE'
     Use '|||' as the separator. Provide real text after |||, not a variable name.
-    
+
     To analyze the full document, use:
       divide_and_analyze("your question|||FULL_CONTEXT")
     The keyword FULL_CONTEXT will be automatically replaced with the document text.

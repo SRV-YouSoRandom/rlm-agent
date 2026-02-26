@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     # LLM
     openrouter_api_key: str
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    llm_model: str = "google/gemma-3-27b-it:free"
+    llm_model: str = "qwen/qwen3-vl-30b-a3b-thinking"
 
     # Embedding
     embedding_model: str = "all-MiniLM-L6-v2"

@@ -4,7 +4,7 @@ from datetime import datetime
 import time
 import logging
 
-logger = logging.getLogger("rag_agent")
+logger = logging.getLogger("rlm_agent")
 
 
 @dataclass

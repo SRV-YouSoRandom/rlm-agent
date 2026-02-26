@@ -10,4 +10,4 @@ def setup_logging():
         handlers=[logging.StreamHandler(sys.stdout)],
     )
 
-logger = logging.getLogger("rag_agent")
+logger = logging.getLogger("rlm_agent")

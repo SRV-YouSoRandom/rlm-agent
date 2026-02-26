@@ -4,7 +4,7 @@ from typing import Dict, List
 import uuid
 import logging
 
-logger = logging.getLogger("rag_agent")
+logger = logging.getLogger("rlm_agent")
 
 # In-memory session store (in production, use Redis or database)
 _sessions: Dict[str, ConversationBufferWindowMemory] = {}

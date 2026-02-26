@@ -7,7 +7,7 @@ from functools import lru_cache
 from core.config import get_settings
 import logging
 
-logger = logging.getLogger("rag_agent")
+logger = logging.getLogger("rlm_agent")
 VECTOR_SIZE = 384  # all-MiniLM-L6-v2 output dim
 
 
